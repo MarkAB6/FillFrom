@@ -1,0 +1,48 @@
+name: Build Windows x86 Release
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+  workflow_dispatch: # �����ֶ��������
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive # ������ 3rdparty ����ģ��
+
+    - name: Install Qt
+      uses: jurplel/install-qt-action@v3
+      with:
+        version: '5.15.2'      # ����ʹ�� 5.15.2����Ϊ��ԭ��֧�� x86
+        arch: 'win32_msvc2019' # ָ�� 32 λ�ܹ�
+        # ���������� Qt 6����ע��ٷ�����û�ṩ x86 Ԥ�����
+
+    - name: Set up MSVC (x86)
+      uses: ilammy/msvc-dev-cmd@v1
+      with:
+        arch: x86
+
+    - name: Build Solution
+      run: |
+       
+        msbuild FillFrom.sln /p:Configuration=Release /p:Platform=x86 /m
+
+    - name: Prepare Deployment (windeployqt)
+      run: |
+     
+        mkdir deploy
+        copy x86\Release\*.exe deploy\
+        windeployqt --release --no-translations --compiler-runtime deploy\FillFrom.exe
+
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: FillFrom_Windows_x86
+        path: deploy/
