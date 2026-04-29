@@ -1,0 +1,49 @@
+name: Build Windows x86 Release
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+  workflow_dispatch: # 允许手动点击运行
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive # 如果你的 3rdparty 是子模块
+
+    - name: Install Qt
+      uses: jurplel/install-qt-action@v3
+      with:
+        version: '5.15.2'      # 建议使用 5.15.2，因为它原生支持 x86
+        arch: 'win32_msvc2019' # 指定 32 位架构
+        # 如果你必须用 Qt 6，请注意官方可能没提供 x86 预编译包
+
+    - name: Set up MSVC (x86)
+      uses: ilammy/msvc-dev-cmd@v1
+      with:
+        arch: x86
+
+    - name: Build Solution
+      run: |
+        # 这里的 FillFrom.sln 替换为你实际的解决方案文件名
+        # 使用 MSBuild 编译 x86 Release
+        msbuild FillFrom.sln /p:Configuration=Release /p:Platform=x86 /m
+
+    - name: Prepare Deployment (windeployqt)
+      run: |
+        # 自动收集 32 位运行时库
+        mkdir deploy
+        copy x86\Release\*.exe deploy\
+        windeployqt --release --no-translations --compiler-runtime deploy\FillFrom.exe
+
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: FillFrom_Windows_x86
+        path: deploy/
