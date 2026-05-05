@@ -8,41 +8,71 @@
 #include "3rdparty/libdxfrw/src/libdxfrw.h"
 #include "3rdparty/libdxfrw/src/drw_objects.h"
 
-// ── 单个轮廓 ─────────────────────────────────────────────────────────────
-struct ImportedContour {
+//单个轮廓
+struct ImportedContour
+{
     QVector<QPointF> vertices;
-    bool isClosed   = false;   // DXF 实体本身标记为闭合
-    bool isValid    = false;   // Boost.Geometry is_valid 通过
-    bool isFillable = false;   // isClosed && isValid
-    QString invalidReason;     // 无效原因（调试用）
+    bool   isClosed     = false;  ///< DXF 实体本身标记为闭合
+    bool   isValid      = false;  ///< Boost.Geometry is_valid 通过
+    bool   isFillable   = false;  ///< isClosed && isValid
+    QString invalidReason;        ///< 无效原因（仅用于调试）
 };
 
-// ── 导入汇总结果 ──────────────────────────────────────────────────────────
-struct DxfImportResult {
+struct DxfImportResult
+{
     QVector<ImportedContour> contours;
-    int totalEntities    = 0;
-    int validContours    = 0;
-    int fillableContours = 0;
-    bool success         = false;
+    int     totalEntities    = 0;
+    int     validContours    = 0;
+    int     fillableContours = 0;
+    bool    success          = false;
     QString message;
 };
 
-// ── DXF 解析器（继承 libdxfrw 回调接口）──────────────────────────────────
 class DxfImporter : public DRW_Interface
 {
 public:
     DxfImportResult importFile(const QString& filePath);
 
 private:
-    /* ---- 感兴趣的实体回调 ---- */
-    void addLine      (const DRW_Line&       data) override;
+   static constexpr double kDedupTol  = 1e-6;  ///< 顶点去重容差
+    static constexpr double kCloseTol  = 1e-4;  ///< 首尾闭合判定容差
+    static constexpr double kEps       = 1e-9;  ///< 通用极小值
+    static constexpr int    kArcSegDef = 64;    ///< 圆弧默认离散段数
+    static constexpr int    kCircleSeg = 72;    ///< 圆默认离散段数
+    static constexpr double kArcStepDeg = 10.0; ///< bulge 自动分段步长（度）
+
+     void addLine      (const DRW_Line&       data) override;
     void addArc       (const DRW_Arc&        data) override;
     void addCircle    (const DRW_Circle&     data) override;
     void addLWPolyline(const DRW_LWPolyline& data) override;
     void addPolyline  (const DRW_Polyline&   data) override;
     void addSpline    (const DRW_Spline*     data) override;
 
-    /* ---- 其余纯虚函数，提供空实现 ---- */
+    static QVector<QPointF> discretizeArc(double cx, double cy, double r,
+                                          double startDeg, double endDeg,
+                                          bool ccw, int segments = kArcSegDef);
+
+    static QVector<QPointF> discretizeBulge(const QPointF& p1, const QPointF& p2,
+                                            double bulge, int segments = 0);
+
+    static ImportedContour  validateContour(ImportedContour c);
+
+    /// 将顶点追加到轮廓，自动跳过重复点
+    static void appendVertex(ImportedContour& c, const QPointF& pt);
+
+    //  散乱 LINE 实体拼接 
+    void chainLineSegments();
+
+    /// addLWPolyline / addPolyline 的公共实现（模板消除重复）
+    template<typename TVertList>
+    ImportedContour buildPolylineContour(const TVertList& vertlist, bool closed) const;
+
+    //  内部状态 
+    QVector<ImportedContour>        m_contours;
+    QVector<QPair<QPointF,QPointF>> m_rawLines;
+    int                             m_totalEntities = 0;
+
+	//其余纯虚函数，空实现，后续要求时再完善
     void addHeader      (const DRW_Header*)              override {}
     void addLType       (const DRW_LType&)               override {}
     void addLayer       (const DRW_Layer&)               override {}
@@ -78,8 +108,6 @@ private:
     void linkImage      (const DRW_ImageDef*)            override {}
     void addComment     (const char*)                    override {}
     void addPlotSettings(const DRW_PlotSettings*)        override {}
-
-    /* ---- write 系列纯虚函数（签名须与 DRW_Interface 完全一致）---- */
     void writeHeader      (DRW_Header&) override {}
     void writeBlocks      ()            override {}
     void writeBlockRecords()            override {}
@@ -91,15 +119,4 @@ private:
     void writeDimstyles   ()            override {}
     void writeObjects     ()            override {}
     void writeAppId       ()            override {}
-
-    /* ---- 内部工具函数 ---- */
-    static QVector<QPointF> discretizeArc(double cx, double cy, double r,
-                                          double startDeg, double endDeg,
-                                          bool ccw, int segments = 64);
-    static ImportedContour validateContour(ImportedContour c);
-    void chainLineSegments();   // 将散乱 LINE 实体拼接成轮廓
-
-    QVector<ImportedContour>         m_contours;
-    QVector<QPair<QPointF,QPointF>>  m_rawLines;   // 待拼接的 LINE 实体
-    int                              m_totalEntities = 0;
 };

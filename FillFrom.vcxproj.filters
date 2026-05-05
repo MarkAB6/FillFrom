@@ -43,79 +43,7 @@
     <ClCompile Include="FillPreviewWidget.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="3rdparty\Clipper2\src\clipper.engine.cpp">
-      <Filter>Header Files</Filter>
-    </ClCompile>
-    <ClCompile Include="3rdparty\Clipper2\src\clipper.offset.cpp">
-      <Filter>Header Files</Filter>
-    </ClCompile>
-    <ClCompile Include="3rdparty\Clipper2\src\clipper.rectclip.cpp">
-      <Filter>Header Files</Filter>
-    </ClCompile>
-    <ClCompile Include="3rdparty\Clipper2\src\clipper.triangulation.cpp">
-      <Filter>Header Files</Filter>
-    </ClCompile>
     <ClCompile Include="DxfImporter.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="3rdparty\libdxfrw\src\libdwgr.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="3rdparty\libdxfrw\src\libdxfrw.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="3rdparty\libdxfrw\src\drw_base.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="3rdparty\libdxfrw\src\drw_classes.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="3rdparty\libdxfrw\src\drw_entities.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="3rdparty\libdxfrw\src\drw_header.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="3rdparty\libdxfrw\src\drw_objects.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="3rdparty\libdxfrw\src\intern\drw_dbg.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="3rdparty\libdxfrw\src\intern\drw_textcodec.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="3rdparty\libdxfrw\src\intern\dwgbuffer.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="3rdparty\libdxfrw\src\intern\dwgreader.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="3rdparty\libdxfrw\src\intern\dwgreader15.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="3rdparty\libdxfrw\src\intern\dwgreader18.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="3rdparty\libdxfrw\src\intern\dwgreader21.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="3rdparty\libdxfrw\src\intern\dwgreader24.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="3rdparty\libdxfrw\src\intern\dwgreader27.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="3rdparty\libdxfrw\src\intern\dwgutil.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="3rdparty\libdxfrw\src\intern\dxfreader.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="3rdparty\libdxfrw\src\intern\dxfwriter.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="3rdparty\libdxfrw\src\intern\rscodec.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -140,6 +68,12 @@
       <Filter>Resource Files</Filter>
     </Image>
     <Image Include="image\3.png">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="image\8.png">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="image\9.png">
       <Filter>Resource Files</Filter>
     </Image>
   </ItemGroup>

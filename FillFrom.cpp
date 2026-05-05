@@ -13,51 +13,93 @@ FillFrom::~FillFrom()
 void FillFrom::setDefaultValues()
 {
     ui.Angle_Edit->setText("0");
-    ui.Line_Spacing->setText("0");
+    ui.Line_Spacing->setText("0.001");
     ui.Margin->setText("0");
     ui.Start_Offset->setText("0");
     ui.End_Offset->setText("0");
     ui.Straight_indentation->setText("0");
     ui.Boundary_Loops->setText("0");
     ui.Pitch->setText("0");
-    ui.Number->setText("0");
+    ui.Number->setText("1");
     ui.Rotation_AngleEdit->setText("0");
     ui.Pen_Number->setCurrentIndex(0);
-}
-void FillFrom::onConfirm()
-{
-    // 若使能但未选填充类型，提示用户
-    if (ui.Select_Enable->isChecked()) {
-        bool anyChecked = false;
-        for (QAbstractButton* btn : m_checkGroup->buttons()) {
-            if (btn->isChecked()) { anyChecked = true; break; }
-        }
-        if (!anyChecked) {
-            QMessageBox::warning(this, tr("提示"), tr("请先选择填充类型（填充1 / 2 / 3）。"));
-            return;
-        }
-    }
-    emit fillConfirmed(collectFillData());
-    close();
-}
-void FillFrom::onCancel()
-{
-	close();
-}
-void FillFrom::onRemovePadding()
-{
-    ui.Enable_Profile->setChecked(false);
     ui.Select_Enable->setChecked(false);
+    ui.Enable_Profile->setChecked(false);
     ui.Object_Calculation->setChecked(false);
     ui.Walk_Around->setChecked(false);
     ui.Cross_Fill->setChecked(false);
     ui.checkBox_8->setChecked(false);
     ui.Automatic_Fill_Angle->setChecked(false);
     ui.Keep_Padding_independent->setChecked(false);
+}
+
+void FillFrom::loadFillDataToUI(int index)
+{
+    if (index < 0 || index >= m_fillDataList.size()) return;
+    const FillData& data = m_fillDataList[index];
+
+    ui.Select_Enable->setChecked(data.enable);
+    ui.Enable_Profile->setChecked(data.enableProfile);
+    ui.Object_Calculation->setChecked(data.objectCalculation);
+    ui.Walk_Around->setChecked(data.walkAround);
+    ui.Cross_Fill->setChecked(data.crossFill);
+    ui.checkBox_8->setChecked(data.averageDistribute);
+    ui.Automatic_Fill_Angle->setChecked(data.autoRotate);
+    ui.Keep_Padding_independent->setChecked(data.keepIndependent);
+
+    ui.Angle_Edit->setText(QString::number(data.angle));
+    ui.Line_Spacing->setText(QString::number(data.lineSpacing));
+    ui.Margin->setText(QString::number(data.margin));
+    ui.Start_Offset->setText(QString::number(data.startOffset));
+    ui.End_Offset->setText(QString::number(data.endOffset));
+    ui.Straight_indentation->setText(QString::number(data.straightIndent));
+    ui.Boundary_Loops->setText(QString::number(data.boundaryLoops));
+    ui.Pitch->setText(QString::number(data.pitch));
+    ui.Number->setText(QString::number(data.processCount));
+    ui.Rotation_AngleEdit->setText(QString::number(data.rotationAngle));
+
+    if (data.penNumber >= 0 && data.penNumber < ui.Pen_Number->count())
+        ui.Pen_Number->setCurrentIndex(data.penNumber);
+
+    currentIndex = data.fillIconIndex;
+    currentProfileIndex = data.profileIconIndex;
+
+    if (!m_mapList.isEmpty()) {
+        ui.Fill_Lable->setIcon(QIcon(m_mapList[currentIndex % m_mapList.size()]));
+    }
+    if (!m_profileList.isEmpty()) {
+        ui.Icon->setIcon(QIcon(m_profileList[currentProfileIndex % m_profileList.size()]));
+    }
+}
+
+void FillFrom::onConfirm()
+{
+    // 如果有使能选项但没有选中任何按钮，先校验一次（实际逻辑已通过按钮切换实时保存）
+    if (m_currentFillIndex != -1) {
+        m_fillDataList[m_currentFillIndex] = collectFillData(m_currentFillIndex);
+    }
+    emit fillConfirmed(m_fillDataList);
+    close();
+}
+
+void FillFrom::onCancel()
+{
+	close();
+}
+
+void FillFrom::onRemovePadding()
+{
+    m_fillDataList.clear();
+    m_fillDataList.resize(3);
+    for (int i = 0; i < 3; ++i) {
+        m_fillDataList[i].fillType = i;
+        m_fillDataList[i].enable = false;
+    }
 
     for (QAbstractButton* btn : m_checkGroup->buttons())
         btn->setChecked(false);
-
+    
+    m_currentFillIndex = -1;
     currentIndex = 0;
     if (!m_mapList.isEmpty()) {
         ui.Fill_Lable->setIcon(QIcon(m_mapList[currentIndex]));
@@ -69,13 +111,10 @@ void FillFrom::onRemovePadding()
 
     emit fillDeleted();
 }
+
 void FillFrom::updateControlStates()
 {
-    bool isFillChecked = false;
-    for (QAbstractButton* btn : m_checkGroup->buttons()) {
-        if (btn->isChecked()) { isFillChecked = true; break; }
-    }
-    const bool shouldEnable = ui.Select_Enable->isChecked() && isFillChecked;
+    const bool shouldEnable = ui.Select_Enable->isChecked() && (m_currentFillIndex != -1);
 
     // 基本输入框
     ui.Angle_Edit->setEnabled(shouldEnable);
@@ -99,8 +138,10 @@ void FillFrom::updateControlStates()
     ui.Object_Calculation->setEnabled(shouldEnable);
     ui.Walk_Around->setEnabled(shouldEnable);
     ui.Cross_Fill->setEnabled(shouldEnable);
+    ui.Keep_Padding_independent->setEnabled(shouldEnable);
 }
-FillData FillFrom::collectFillData() const
+
+FillData FillFrom::collectFillData(int fillType) const
 {
     FillData data;
     data.enableProfile = ui.Enable_Profile->isChecked();
@@ -111,9 +152,9 @@ FillData FillFrom::collectFillData() const
     data.fillIconIndex = currentIndex;
     data.angle = ui.Angle_Edit->text().toDouble();
     data.penNumber = ui.Pen_Number->currentIndex();
-	data.penColor = m_colorList.value(data.penNumber).second; // 获取对应的颜色值
+	data.penColor = m_colorList.value(data.penNumber).second; 
     data.lineSpacing = ui.Line_Spacing->text().toDouble();
-	data.lineCount = ui.Number->text().toInt();
+    data.processCount = ui.Number->text().toInt();
     data.averageDistribute = ui.checkBox_8->isChecked();
     data.margin = ui.Margin->text().toDouble();
     data.startOffset = ui.Start_Offset->text().toDouble();
@@ -125,19 +166,33 @@ FillData FillFrom::collectFillData() const
     data.rotationAngle = ui.Rotation_AngleEdit->text().toDouble();
     data.keepIndependent = ui.Keep_Padding_independent->isChecked();
 
-    data.fillType = -1;
-    for (QAbstractButton* btn : m_checkGroup->buttons()) {
-        if (btn->isChecked()) {
-            data.fillType = m_checkGroup->id(btn);
-            break;
-        }
-    }
+    data.profileIconIndex = currentProfileIndex;
+    data.fillType = fillType;
+   
     return data;
 }
 
 
 void FillFrom::init()
 {
+    m_currentFillIndex = -1;
+    m_fillDataList.resize(3);
+    for (int i = 0; i < 3; ++i) {
+        m_fillDataList[i].fillType = i;
+        m_fillDataList[i].enable = false;
+    }
+
+	//初始话轮廓图片列表
+    m_profileList.append(QPixmap(":/image/8.png"));
+    m_profileList.append(QPixmap(":/image/9.png"));
+
+    if (m_profileList.size() > 0)
+    {
+        currentProfileIndex = 0;
+        ui.Icon->setIcon(QIcon(m_profileList[currentProfileIndex]));
+        ui.Icon->setIconSize(ui.Icon->size());
+    }
+
     //初始化颜色列表
 	m_colorList.append(qMakePair(QString("10"), QString("#FF0000")));
     m_colorList.append(qMakePair(QString("9"), QString("#00FF00")));
@@ -156,12 +211,10 @@ void FillFrom::init()
         QString hex = pair.second;
 
         QIcon icon;
-        // 生成一个纯色小方块当做颜色预览
         QPixmap pix(24, 24);
         pix.fill(QColor(hex));
         icon = QIcon(pix);
 
-        // 添加item：颜色图标 + 文字(名称+色号)，data存hex
         ui.Pen_Number->addItem(icon, QString("          %1").arg(name));
     }
 
@@ -198,7 +251,6 @@ void FillFrom::init()
 
 	// 设置默认状态
     this->setDefaultValues();
-    
     updateControlStates();
 
     connect(ui.Enable_Profile, &QCheckBox::toggled, this, [=](bool checked) {
@@ -212,31 +264,45 @@ void FillFrom::init()
     connect(m_checkGroup, static_cast<void(QButtonGroup::*)(int, bool)>(&QButtonGroup::buttonToggled), this, [=](int id, bool checked) {
 #endif
         if (checked) {
+            // 切换前，保存当前 UI 面板的参数到旧的层级索引
+            if (m_currentFillIndex != -1) {
+                m_fillDataList[m_currentFillIndex] = collectFillData(m_currentFillIndex);
+            }
+            // 排他逻辑：把其余的按钮勾选去掉
             for (QAbstractButton* btn : m_checkGroup->buttons()) {
                 if (m_checkGroup->id(btn) != id && btn->isChecked())
                     btn->setChecked(false);
             }
+            // 更新层级并回显对应的数据
+            m_currentFillIndex = id;
+            loadFillDataToUI(m_currentFillIndex);
+        } else {
+            // 如果是被取消的本按钮（比如被自己点击取消掉）
+            if (m_currentFillIndex == id) {
+                m_fillDataList[m_currentFillIndex] = collectFillData(m_currentFillIndex);
+                m_currentFillIndex = -1;
+                setDefaultValues();
+            }
         }
         updateControlStates();
-        });
+    });
 
-    // 使能 checkbox
     connect(ui.Select_Enable, &QCheckBox::toggled, this, &FillFrom::updateControlStates);
-
-    // 平均分布填充线：勾选时禁用线间距手动输入
     connect(ui.checkBox_8, &QCheckBox::toggled, this, &FillFrom::updateControlStates);
-
-    // 自动旋转填充角度：勾选时才允许编辑旋转角度
     connect(ui.Automatic_Fill_Angle, &QCheckBox::toggled, this, &FillFrom::updateControlStates);
 
-    // 类型图片切换
+    connect(ui.Icon, &QPushButton::clicked, this, [=] {
+        currentProfileIndex++;
+        if (currentProfileIndex >= m_profileList.size())
+            currentProfileIndex = 0;
+        ui.Icon->setIcon(QIcon(m_profileList[currentProfileIndex]));
+        });
     connect(ui.Fill_Lable, &QPushButton::clicked, this, &FillFrom::FillLableChanged);
 
     // 确定 / 取消 / 删除填充
     connect(ui.Confirm, &QPushButton::clicked, this, &FillFrom::onConfirm);
     connect(ui.Cancel, &QPushButton::clicked, this, &FillFrom::onCancel);
     connect(ui.Remove_Padding, &QPushButton::clicked, this, &FillFrom::onRemovePadding);
-    connect(ui.Fill_Lable, &QPushButton::clicked, this, &FillFrom::FillLableChanged);
 }
 
 void FillFrom::FillLableChanged()
@@ -247,3 +313,7 @@ void FillFrom::FillLableChanged()
     ui.Fill_Lable->setIcon(QIcon(m_mapList[currentIndex]));
 }
 
+void FillFrom::onProfileChanged()
+{
+  
+}  

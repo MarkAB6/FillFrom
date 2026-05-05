@@ -60,21 +60,21 @@
   </ImportGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'" Label="QtSettings">
     <QtInstall>6.5.3_msvc2019_64</QtInstall>
-    <QtModules>core;gui;widgets</QtModules>
+    <QtModules>core;gui;widgets;concurrent</QtModules>
     <QtBuildConfig>debug</QtBuildConfig>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="QtSettings">
     <QtInstall>6.5.3_msvc2019_64</QtInstall>
-    <QtModules>core;gui;widgets</QtModules>
+    <QtModules>core;gui;widgets;concurrent</QtModules>
     <QtBuildConfig>debug</QtBuildConfig>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x64'" Label="QtSettings">
-    <QtModules>core;gui;widgets</QtModules>
+    <QtModules>core;gui;widgets;concurrent</QtModules>
     <QtBuildConfig>release</QtBuildConfig>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="QtSettings">
     <QtInstall>6.5.3_msvc2019_64</QtInstall>
-    <QtModules>core;gui;widgets</QtModules>
+    <QtModules>core;gui;widgets;concurrent</QtModules>
     <QtBuildConfig>release</QtBuildConfig>
   </PropertyGroup>
   <Target Name="QtMsBuildNotFound" BeforeTargets="CustomBuild;ClCompile" Condition="!Exists('$(QtMsBuild)\qt.targets') or !Exists('$(QtMsBuild)\qt.props')">
@@ -112,7 +112,7 @@
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
       <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
-      <AdditionalIncludeDirectories>$(ProjectDir)3rdparty\libdxfrw;C:\Users\liuyongjie\source\repos\FillFrom\3rdparty\libdxfrw\src\intern;$(ProjectDir)3rdparty;$(ProjectDir)3rdparty\boost\geometry;$(ProjectDir)3rdparty\Clipper2\include;$(ProjectDir)3rdparty\boost;$(ProjectDir)3rdparty\libdxfrw\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(Solution)3rdparty\boost\geometry;$(Solution)3rdparty\boost\geometry\geometries;$(Solution)3rdparty\boost;$(Solution)3rdparty\Clipper2\include\clipper2;$(Solution)3rdparty\Clipper2\src;$(Solution)3rdparty\libdxfrw\src\intern;$(Solution)3rdparty\libdxfrw\src;$(ProjectDir)3rdparty\libdxfrw;C:\Users\liuyongjie\source\repos\FillFrom\3rdparty\libdxfrw\src\intern;$(ProjectDir)3rdparty;$(ProjectDir)3rdparty\boost\geometry;$(ProjectDir)3rdparty\Clipper2\include;$(ProjectDir)3rdparty\boost;$(ProjectDir)3rdparty\libdxfrw\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <AdditionalDependencies>%(AdditionalDependencies)</AdditionalDependencies>
@@ -121,7 +121,7 @@
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
       <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
-      <AdditionalIncludeDirectories>$(ProjectDir)3rdparty\libdxfrw;C:\Users\liuyongjie\source\repos\FillFrom\3rdparty\libdxfrw\src\intern;$(ProjectDir)3rdparty;$(ProjectDir)3rdparty\boost\geometry;$(ProjectDir)3rdparty\Clipper2\include;$(ProjectDir)3rdparty\boost;$(ProjectDir)3rdparty\libdxfrw\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(Solution)3rdparty\boost\geometry;$(Solution)3rdparty\boost\geometry\geometries;$(Solution)3rdparty\boost;$(Solution)3rdparty\Clipper2\include\clipper2;$(Solution)3rdparty\Clipper2\src;$(Solution)3rdparty\libdxfrw\src\intern;$(Solution)3rdparty\libdxfrw\src;$(ProjectDir)3rdparty\libdxfrw;C:\Users\liuyongjie\source\repos\FillFrom\3rdparty\libdxfrw\src\intern;$(ProjectDir)3rdparty;$(ProjectDir)3rdparty\boost\geometry;$(ProjectDir)3rdparty\Clipper2\include;$(ProjectDir)3rdparty\boost;$(ProjectDir)3rdparty\libdxfrw\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <AdditionalDependencies>%(AdditionalDependencies)</AdditionalDependencies>
@@ -129,12 +129,12 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
-      <AdditionalIncludeDirectories>$(ProjectDir)3rdparty\Clipper2\include;$(ProjectDir)3rdparty\libxfrw\src\intern;$(ProjectDir)3rdparty\libxfrw;$(ProjectDir)3rdparty\libxfrw\src;$(ProjectDir)3rdparty\boost;$(ProjectDir)3rdparty\boost\geometry;$(ProjectDir)3rdparty;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(Solution)3rdparty\boost\geometry;$(Solution)3rdparty\boost\geometry\geometries;$(Solution)3rdparty\boost;$(Solution)3rdparty\Clipper2\include\clipper2;$(Solution)3rdparty\Clipper2\src;$(Solution)3rdparty\libdxfrw\src\intern;$(Solution)3rdparty\libdxfrw\src;$(ProjectDir)3rdparty\Clipper2\include;$(ProjectDir)3rdparty\libxfrw\src\intern;$(ProjectDir)3rdparty\libxfrw;$(ProjectDir)3rdparty\libxfrw\src;$(ProjectDir)3rdparty\boost;$(ProjectDir)3rdparty\boost\geometry;$(ProjectDir)3rdparty;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
-      <AdditionalIncludeDirectories>$(ProjectDir)3rdparty\Clipper2\include;$(ProjectDir)3rdparty\libxfrw\src\intern;$(ProjectDir)3rdparty\libxfrw;$(ProjectDir)3rdparty\libxfrw\src;$(ProjectDir)3rdparty\boost;$(ProjectDir)3rdparty\boost\geometry;$(ProjectDir)3rdparty;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(Solution)3rdparty\boost\geometry;$(Solution)3rdparty\boost\geometry\geometries;$(Solution)3rdparty\boost;$(Solution)3rdparty\Clipper2\include\clipper2;$(Solution)3rdparty\Clipper2\src;$(Solution)3rdparty\libdxfrw\src\intern;$(Solution)3rdparty\libdxfrw\src;$(ProjectDir)3rdparty\Clipper2\include;$(ProjectDir)3rdparty\libxfrw\src\intern;$(ProjectDir)3rdparty\libxfrw;$(ProjectDir)3rdparty\libxfrw\src;$(ProjectDir)3rdparty\boost;$(ProjectDir)3rdparty\boost\geometry;$(ProjectDir)3rdparty;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'" Label="Configuration">
@@ -197,30 +197,6 @@
     <QtRcc Include="FillFrom.qrc" />
     <QtUic Include="FillFrom.ui" />
     <QtMoc Include="FillFrom.h" />
-    <ClCompile Include="3rdparty\Clipper2\src\clipper.engine.cpp" />
-    <ClCompile Include="3rdparty\Clipper2\src\clipper.offset.cpp" />
-    <ClCompile Include="3rdparty\Clipper2\src\clipper.rectclip.cpp" />
-    <ClCompile Include="3rdparty\Clipper2\src\clipper.triangulation.cpp" />
-    <ClCompile Include="3rdparty\libdxfrw\src\drw_base.cpp" />
-    <ClCompile Include="3rdparty\libdxfrw\src\drw_classes.cpp" />
-    <ClCompile Include="3rdparty\libdxfrw\src\drw_entities.cpp" />
-    <ClCompile Include="3rdparty\libdxfrw\src\drw_header.cpp" />
-    <ClCompile Include="3rdparty\libdxfrw\src\drw_objects.cpp" />
-    <ClCompile Include="3rdparty\libdxfrw\src\intern\drw_dbg.cpp" />
-    <ClCompile Include="3rdparty\libdxfrw\src\intern\drw_textcodec.cpp" />
-    <ClCompile Include="3rdparty\libdxfrw\src\intern\dwgbuffer.cpp" />
-    <ClCompile Include="3rdparty\libdxfrw\src\intern\dwgreader.cpp" />
-    <ClCompile Include="3rdparty\libdxfrw\src\intern\dwgreader15.cpp" />
-    <ClCompile Include="3rdparty\libdxfrw\src\intern\dwgreader18.cpp" />
-    <ClCompile Include="3rdparty\libdxfrw\src\intern\dwgreader21.cpp" />
-    <ClCompile Include="3rdparty\libdxfrw\src\intern\dwgreader24.cpp" />
-    <ClCompile Include="3rdparty\libdxfrw\src\intern\dwgreader27.cpp" />
-    <ClCompile Include="3rdparty\libdxfrw\src\intern\dwgutil.cpp" />
-    <ClCompile Include="3rdparty\libdxfrw\src\intern\dxfreader.cpp" />
-    <ClCompile Include="3rdparty\libdxfrw\src\intern\dxfwriter.cpp" />
-    <ClCompile Include="3rdparty\libdxfrw\src\intern\rscodec.cpp" />
-    <ClCompile Include="3rdparty\libdxfrw\src\libdwgr.cpp" />
-    <ClCompile Include="3rdparty\libdxfrw\src\libdxfrw.cpp" />
     <ClCompile Include="DxfImporter.cpp" />
     <ClCompile Include="FillFrom.cpp" />
     <ClCompile Include="FillPreviewWidget.cpp" />
@@ -239,10 +215,17 @@
     <Image Include="image\1.png" />
     <Image Include="image\2.png" />
     <Image Include="image\3.png" />
+    <Image Include="image\8.png" />
+    <Image Include="image\9.png" />
   </ItemGroup>
   <ItemGroup>
     <None Include=".github\workflows\build_x86.yml" />
     <None Include="cpp.hint" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\3rdpartyStaticLib\3rdpartyStaticLib.vcxproj">
+      <Project>{6378d4bb-35ab-4139-9912-415477c7ba50}</Project>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Condition="Exists('$(QtMsBuild)\qt.targets')">
