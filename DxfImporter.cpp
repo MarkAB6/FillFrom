@@ -141,59 +141,92 @@ ImportedContour DxfImporter::validateContour(ImportedContour c)
     return c;
 }
 
-//  散乱 LINE 实体 → 拼接轮廓链
+// 辅助哈希函数，用于快速匹配空间网格
+struct PointHash {
+    std::size_t operator()(const std::pair<int, int>& p) const {
+        return std::hash<int>()(p.first) ^ (std::hash<int>()(p.second) << 1);
+    }
+};
+
 void DxfImporter::chainLineSegments()
 {
     if (m_rawLines.isEmpty()) return;
 
+    // 1. 构建空间网格哈希以加速查找临近点
+    const double gridSize = qMax(kCloseTol * 2.0, 1e-4);
+    using GridKey = std::pair<int, int>;
+    std::unordered_multimap<GridKey, int, PointHash> spatialGrid;
+
+    auto getGridKey = [gridSize](const QPointF& pt) -> GridKey {
+        return { static_cast<int>(std::floor(pt.x() / gridSize)),
+                 static_cast<int>(std::floor(pt.y() / gridSize)) };
+        };
+
     QVector<bool> used(m_rawLines.size(), false);
+    for (int i = 0; i < m_rawLines.size(); ++i) {
+        spatialGrid.insert({ getGridKey(m_rawLines[i].first), i });
+        spatialGrid.insert({ getGridKey(m_rawLines[i].second), i });
+    }
 
-    // 逐条取未用线段作为种子，向两端延伸形成链
-    for (int seed = 0; seed < m_rawLines.size(); ++seed) {
-        if (used[seed]) continue;
-
-        QVector<QPointF> chain = { m_rawLines[seed].first,
-                                   m_rawLines[seed].second };
-        used[seed] = true;
-
-        // 向尾端延伸
-        bool extended = true;
-        while (extended) {
-            extended = false;
-            const QPointF tail = chain.last();
-            for (int i = 0; i < m_rawLines.size(); ++i) {
-                if (used[i]) continue;
-                if (QLineF(tail, m_rawLines[i].first).length() < kCloseTol) {
-                    chain.push_back(m_rawLines[i].second);
-                    used[i] = true; extended = true; break;
-                }
-                if (QLineF(tail, m_rawLines[i].second).length() < kCloseTol) {
-                    chain.push_back(m_rawLines[i].first);
-                    used[i] = true; extended = true; break;
+    auto findConnectedLine = [&](const QPointF& pt) -> int {
+        GridKey key = getGridKey(pt);
+        // 搜索相邻的 3x3 个网格以应对边界情况
+        for (int dx = -1; dx <= 1; ++dx) {
+            for (int dy = -1; dy <= 1; ++dy) {
+                GridKey neighborKey = { key.first + dx, key.second + dy };
+                auto range = spatialGrid.equal_range(neighborKey);
+                for (auto it = range.first; it != range.second; ++it) {
+                    int i = it->second;
+                    if (used[i]) continue;
+                    if (QLineF(pt, m_rawLines[i].first).length() < kCloseTol ||
+                        QLineF(pt, m_rawLines[i].second).length() < kCloseTol) {
+                        return i;
+                    }
                 }
             }
         }
+        return -1;
+        };
 
-        // 向头端延伸
-        extended = true;
+    // 2. 拼接轮廓链
+    for (int seed = 0; seed < m_rawLines.size(); ++seed) {
+        if (used[seed]) continue;
+
+        std::deque<QPointF> chain;
+        chain.push_back(m_rawLines[seed].first);
+        chain.push_back(m_rawLines[seed].second);
+        used[seed] = true;
+
+        // 向两端延伸
+        bool extended = true;
         while (extended) {
             extended = false;
-            const QPointF head = chain.first();
-            for (int i = 0; i < m_rawLines.size(); ++i) {
-                if (used[i]) continue;
-                if (QLineF(head, m_rawLines[i].first).length() < kCloseTol) {
-                    chain.push_front(m_rawLines[i].second);
-                    used[i] = true; extended = true; break;
-                }
-                if (QLineF(head, m_rawLines[i].second).length() < kCloseTol) {
-                    chain.push_front(m_rawLines[i].first);
-                    used[i] = true; extended = true; break;
-                }
+
+            // 尝试延伸队尾
+            int tailMatch = findConnectedLine(chain.back());
+            if (tailMatch != -1) {
+                if (QLineF(chain.back(), m_rawLines[tailMatch].first).length() < kCloseTol)
+                    chain.push_back(m_rawLines[tailMatch].second);
+                else
+                    chain.push_back(m_rawLines[tailMatch].first);
+                used[tailMatch] = true;
+                extended = true;
+            }
+
+            // 尝试延伸队头
+            int headMatch = findConnectedLine(chain.front());
+            if (headMatch != -1) {
+                if (QLineF(chain.front(), m_rawLines[headMatch].first).length() < kCloseTol)
+                    chain.push_front(m_rawLines[headMatch].second);
+                else
+                    chain.push_front(m_rawLines[headMatch].first);
+                used[headMatch] = true;
+                extended = true;
             }
         }
 
         ImportedContour c;
-        c.vertices = std::move(chain);
+        c.vertices = QVector<QPointF>(chain.begin(), chain.end());
         c.isClosed = (QLineF(c.vertices.first(), c.vertices.last()).length() < kCloseTol);
         m_contours.push_back(validateContour(std::move(c)));
     }
@@ -298,15 +331,135 @@ void DxfImporter::addPolyline(const DRW_Polyline& data)
     m_contours.push_back(validateContour(buildPolylineContour(wrapped, data.flags & 1)));
 }
 
+
+namespace {
+    // De Boor 算法核心求值辅助函数（支持普通 B-Spline 和 NURBS）
+    QPointF evaluateSplinePoint(double t, int degree,
+        const QVector<QPointF>& cps,
+        const QVector<double>& knots,
+        const QVector<double>& weights)
+    {
+        const int n = cps.size();
+        const int p = degree;
+
+        // 1. 查找 t 所在的节点区间 k  (满足: knots[k] <= t < knots[k+1])
+        int k = p;
+        while (k < n && knots[k + 1] <= t) {
+            k++;
+        }
+        if (k >= n) k = n - 1; // 极值容错处理
+
+        QVector<QPointF> d(p + 1);
+        QVector<double> w(p + 1, 1.0);
+        const bool rational = (weights.size() == n); // 是否有有效权重数组(NURBS)
+
+        // 2. 选取参与当前区间求值的区间控制点（共 p+1 个）
+        for (int j = 0; j <= p; ++j) {
+            const int idx = k - p + j;
+            d[j] = cps[idx];
+            if (rational) {
+                w[j] = weights[idx];
+                d[j] = QPointF(d[j].x() * w[j], d[j].y() * w[j]); // 转换为齐次坐标 (x*w, y*w)
+            }
+        }
+
+        // 3. 递推降阶求值
+        for (int r = 1; r <= p; ++r) {
+            for (int j = p; j >= r; --j) {
+                const int i = k - p + j;
+                const double den = knots[i + p + 1 - r] - knots[i];
+                const double alpha = (den == 0.0) ? 0.0 : (t - knots[i]) / den;
+
+                d[j] = QPointF((1.0 - alpha) * d[j - 1].x() + alpha * d[j].x(),
+                    (1.0 - alpha) * d[j - 1].y() + alpha * d[j].y());
+                if (rational) {
+                    w[j] = (1.0 - alpha) * w[j - 1] + alpha * w[j];
+                }
+            }
+        }
+
+        // 4. NURBS需要转换回非齐次坐标
+        if (rational && w[p] != 0.0) {
+            return QPointF(d[p].x() / w[p], d[p].y() / w[p]);
+        }
+        return d[p];
+    }
+}
+
+//void DxfImporter::addSpline(const DRW_Spline* data)
+//{
+//    if (!data) return;
+//    ++m_totalEntities;
+//    ImportedContour c;
+//    c.vertices.reserve(static_cast<int>(data->controllist.size()));
+//    for (const auto& v : data->controllist)
+//        c.vertices.push_back(QPointF(v->x, v->y));
+//    c.isClosed = (data->flags & 1);
+//    m_contours.push_back(validateContour(std::move(c)));
+//}
+
 void DxfImporter::addSpline(const DRW_Spline* data)
 {
     if (!data) return;
     ++m_totalEntities;
-    ImportedContour c;
-    c.vertices.reserve(static_cast<int>(data->controllist.size()));
+
+    const int degree = data->degree;
+    const int n = static_cast<int>(data->controllist.size());
+
+    // 提取控制点
+    QVector<QPointF> cps;
+    cps.reserve(n);
     for (const auto& v : data->controllist)
-        c.vertices.push_back(QPointF(v->x, v->y));
+        cps.push_back(QPointF(v->x, v->y));
+
+    // 提取权重(如果 DXF 中带有完整的权重列表作为 NURBS)
+    QVector<double> weights;
+    if (data->weightlist.size() == static_cast<std::size_t>(n)) {
+        for (double w : data->weightlist)
+            weights.push_back(w);
+    }
+
+    // 提取节点向量（knotlist）
+    QVector<double> knots;
+    knots.reserve(static_cast<int>(data->knotslist.size()));
+    for (double k_val : data->knotslist) {
+        knots.push_back(k_val);
+    }
+
+    ImportedContour c;
     c.isClosed = (data->flags & 1);
+
+    // 标准 DXF 的 knotlist 尺寸是 n + degree + 1。
+    // 如果数据极度缺失、控制点小于2或度数 <= 0，则降级为只连控制点
+    if (degree <= 0 || n < 2 || static_cast<int>(knots.size()) < n + degree + 1) {
+        c.vertices = cps;
+    }
+    else {
+        // [有效区间] B-Spline 起点和终点通常映射在 knots[degree] 和 knots[n]
+        const double uMin = knots[degree];
+        const double uMax = knots[n];
+
+        // 决定曲线采样的精细度：此处默认通过一段平滑的密集点实现（比如大致每个控制点分 15~20 份计算）
+        const int segments = qMax(64, n * 20);
+        c.vertices.reserve(segments + 1);
+
+        for (int i = 0; i <= segments; ++i) {
+            double t = uMin + (uMax - uMin) * i / segments;
+
+            // 安全限制避免浮点数漂移越界
+            if (t < uMin) t = uMin;
+            if (t > uMax) t = uMax;
+
+            QPointF pt = evaluateSplinePoint(t, degree, cps, knots, weights);
+
+            // 对于头尾或者距离很近的点复用已有的跳出逻辑
+            if (i > 0 && QLineF(c.vertices.last(), pt).length() <= kEps) {
+                continue;
+            }
+            c.vertices.push_back(pt);
+        }
+    }
+
     m_contours.push_back(validateContour(std::move(c)));
 }
 

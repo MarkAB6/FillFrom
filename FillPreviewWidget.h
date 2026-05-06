@@ -5,8 +5,15 @@
 #include "FillFrom.h"
 #include "DxfImporter.h"
 #include "clipper2/clipper.h"
-#include<QFutureWatcher>
+#include <QFutureWatcher>
 using namespace Clipper2Lib;
+
+/// 每个图层的完整绘制缓存（全部在异步线程中预算好）
+struct LayerCacheData {
+    QPainterPath fillPath;      ///< 填充线路径
+    QPainterPath basePath;      ///< 轮廓闭合路径
+    QPainterPath boundaryPath;  ///< 所有边界环路径
+};
 
 class FillPreviewWidget : public QWidget
 {
@@ -23,11 +30,13 @@ protected:
 
 private slots:
     void onImportDxf();
- 
+
 private:
-    QFutureWatcher<QList<QPainterPath>> m_watcher; //监听计算结果
-    QList<QPainterPath> m_cachedFillPath;//缓存计算好的填充路径
-	bool m_isCalculating = false; //是否正在计算填充路径
+    static constexpr int kMaxHatchLines = 10000; ///< 单层最大填充线数，防止密度过高时卡死
+
+    QFutureWatcher<QList<LayerCacheData>> m_watcher;
+    QList<LayerCacheData> m_cachedLayers; ///< 缓存每层的完整绘制数据
+    bool m_isCalculating = false;
 
     QList<FillData>     m_data;
     bool         m_hasFill = false;
@@ -36,29 +45,25 @@ private:
     QPainterPath m_shape1;
     QPainterPath m_shape2;
 
-    QVector<ImportedContour> m_importedContours;//存储轮廓数据
+    QVector<ImportedContour> m_importedContours;
 
     QPushButton* m_importBtn = nullptr;
 
-	void startAsyncCompute(); //开始计算填充路径
+    void startAsyncCompute();
 
-    PathsD buildBasePolygon(const FillData& data)                               const;//构建基础多边形
-    PathsD buildDxfBasePolygon()                            const;//构建导入 DXF 的基础多边形
-	PathsD buildClipPolygon(const PathsD& base, const FillData& data)             const;//计算裁剪多边形（基础多边形缩放、偏移、添加边距等）
-
-    PathsD generateHatchLines(const PathsD& clipPolygon, double angleDeg, const FillData& data) const;//生成填充线
-
-    /// 对单个轮廓区域执行裁剪并返回填充路径（消除重复逻辑的核心辅助）
+    PathsD buildBasePolygon(const FillData& data)                                  const;
+    PathsD buildDxfBasePolygon()                                                   const;
+    PathsD buildClipPolygon(const PathsD& base, const FillData& data)              const;
+    PathsD generateHatchLines(const PathsD& clipPolygon, double angleDeg, const FillData& data) const;
     QPainterPath clipHatchToPath(const PathsD& clipPolygon, double angleDeg, const FillData& data) const;
-    QList<QPainterPath> generateFillPath()                         const;
 
-  
-    QTransform   computeViewTransform()                     const;
-    int          countFillableContours()                    const;
-    void         paintContours(QPainter& painter)           const;
-    void         paintBoundaryLoops(QPainter& painter,
-                                     const PathsD& base,
-                                     const FillData& data, const QColor& color)   const;
-    void         paintStatusText(QPainter& painter)         const;
+    /// 计算单层的完整缓存（填充 + 轮廓 + 边界环）
+    LayerCacheData computeLayerCache(const FillData& data)                         const;
+    QList<LayerCacheData> generateLayerCaches()                                    const;
+
+    QTransform   computeViewTransform()                                            const;
+    int          countFillableContours()                                           const;
+    void         paintContours(QPainter& painter)                                  const;
+    void         paintStatusText(QPainter& painter)                                const;
 };
 

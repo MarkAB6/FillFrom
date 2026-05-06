@@ -9,7 +9,6 @@
 #include <QtConcurrent>
 #include <QFuture>
 
-//坐标空间转换 
 static PathD MapOpenPathToClipper(const QTransform& tf, const QVector<QPointF>& points)
 {
     PathD result;
@@ -50,15 +49,12 @@ static QPainterPath ClipperToQtClosedPath(const PathsD& paths)
 
 static QPainterPath ClipperToQtOpenPath(const PathsD& paths)
 {
-
     QPainterPath result;
     for (const PathD& path : paths) {
-        if (path.size() < 2) continue; // 只有1个点的情况下无法绘制出线段，修改为空判断为小于2
-        // 直接在结果上进行 moveTo 和 lineTo 可以提升性能并避免子路径丢失
+        if (path.size() < 2) continue;
         result.moveTo(path[0].x, path[0].y);
-        for (size_t i = 1; i < path.size(); ++i) {
+        for (size_t i = 1; i < path.size(); ++i)
             result.lineTo(path[i].x, path[i].y);
-        }
     }
     return result;
 }
@@ -78,13 +74,12 @@ FillPreviewWidget::FillPreviewWidget(QWidget* parent)
     m_importBtn->setCursor(Qt::PointingHandCursor);
     connect(m_importBtn, &QPushButton::clicked, this, &FillPreviewWidget::onImportDxf);
 
-    connect(&m_watcher, &QFutureWatcher<QList<QPainterPath>>::finished, this, [this]() {
-        m_cachedFillPath = m_watcher.result();
+    connect(&m_watcher, &QFutureWatcher<QList<LayerCacheData>>::finished, this, [this]() {
+        m_cachedLayers = m_watcher.result();
         m_isCalculating = false;
         update();
-		});
+    });
 
-    // 初始化时直接将大小设为3，预留满3个图层单元的位置
     m_data.resize(3);
     for (int i = 0; i < 3; ++i) {
         m_data[i].enable = false;
@@ -96,23 +91,18 @@ void FillPreviewWidget::startAsyncCompute()
 {
     m_isCalculating = true;
     update();
-    
-    // 返回 QList<QPainterPath> 的计算任务
-    QFuture<QList<QPainterPath>> future = QtConcurrent::run([this]() -> QList<QPainterPath> {
-        return this->generateFillPath();
+
+    QFuture<QList<LayerCacheData>> future = QtConcurrent::run([this]() -> QList<LayerCacheData> {
+        return this->generateLayerCaches();
     });
 
     m_watcher.setFuture(future);
 }
 
-FillPreviewWidget::~FillPreviewWidget()
-{
-
-}
+FillPreviewWidget::~FillPreviewWidget() {}
 
 void FillPreviewWidget::applyFillList(const QList<FillData>& dataList)
 {
-    // 直接全量替换，FillFrom 内部已经处理好了 3 个层级的逻辑合并
     m_data = dataList;
 
     m_hasFill = false;
@@ -126,7 +116,7 @@ void FillPreviewWidget::applyFillList(const QList<FillData>& dataList)
     if (m_hasFill) {
         startAsyncCompute();
     } else {
-        m_cachedFillPath.clear();
+        m_cachedLayers.clear();
         update();
     }
 }
@@ -142,7 +132,7 @@ void FillPreviewWidget::connectToForm(FillFrom* form)
     connect(form, &FillFrom::fillDeleted, this, [this]() {
         QList<FillData> emptyList;
         emptyList.resize(3);
-        for(int i = 0; i < 3; ++i) {
+        for (int i = 0; i < 3; ++i) {
             emptyList[i].enable = false;
             emptyList[i].fillType = i;
         }
@@ -174,7 +164,6 @@ void FillPreviewWidget::onImportDxf()
 
     QMessageBox::information(this, tr("导入结果"), res.message);
 }
-
 
 PathsD FillPreviewWidget::buildDxfBasePolygon() const
 {
@@ -218,7 +207,6 @@ PathsD FillPreviewWidget::buildClipPolygon(const PathsD& base, const FillData& d
         return InflatePaths(base, -totalMargin, JoinType::Miter, EndType::Polygon);
 
     if (data.keepIndependent) {
-        // 独立对象逐个偏移
         PathsD result;
         for (const PathD& path : base) {
             PathsD single = { path };
@@ -227,13 +215,11 @@ PathsD FillPreviewWidget::buildClipPolygon(const PathsD& base, const FillData& d
         }
         return result;
     } else {
-        // 参数绑定：以整体的形式直接作偏移切割
         return InflatePaths(base, -totalMargin, JoinType::Miter, EndType::Polygon);
     }
 }
 
-
-PathsD FillPreviewWidget::generateHatchLines(const PathsD& clipPolygon, double angleDeg,const FillData& data) const
+PathsD FillPreviewWidget::generateHatchLines(const PathsD& clipPolygon, double angleDeg, const FillData& data) const
 {
     PathsD hatchLines;
     if (clipPolygon.empty()) return hatchLines;
@@ -242,7 +228,6 @@ PathsD FillPreviewWidget::generateHatchLines(const PathsD& clipPolygon, double a
     const double cx = (origBounds.left + origBounds.right) / 2.0;
     const double cy = (origBounds.top  + origBounds.bottom) / 2.0;
 
-    // 旋转反变换：用于在旋转空间中计算包围范围
     QTransform tfInv;
     tfInv.translate(cx, cy);
     tfInv.rotate(-angleDeg);
@@ -266,11 +251,10 @@ PathsD FillPreviewWidget::generateHatchLines(const PathsD& clipPolygon, double a
     if (!hasPts) return hatchLines;
 
     const double startY = minY + data.startOffset * 1.0;
-    const double endY   = maxY - data.endOffset * 1.0;
+    const double endY   = maxY - data.endOffset   * 1.0;
     if (startY >= endY) return hatchLines;
 
-    // 留出微小边界惯量，避免线段恰好落在边界上
-    const double inset       = 0.01;
+    const double inset = 0.01;
     double usableStart = startY + inset;
     double usableEnd   = endY   - inset;
     if (usableStart > usableEnd) { usableStart = startY; usableEnd = endY; }
@@ -278,7 +262,6 @@ PathsD FillPreviewWidget::generateHatchLines(const PathsD& clipPolygon, double a
     const double usableRange = usableEnd - usableStart;
     if (usableRange < 0.0) return hatchLines;
 
-    // 根据模式确定行数与间距
     int    linesToGenerate = 0;
     double spacing         = 0.0;
     double firstY          = usableStart;
@@ -295,15 +278,30 @@ PathsD FillPreviewWidget::generateHatchLines(const PathsD& clipPolygon, double a
     } else {
         if (data.lineSpacing <= 0.0) return hatchLines;
 
-        spacing = qMax(0.001, data.lineSpacing * 10.0);  // 不再强制用2.0兜底，但保留0.1防死循环
+        spacing         = qMax(0.001, data.lineSpacing * 10.0);
         linesToGenerate = static_cast<int>(qFloor(usableRange / spacing)) + 1;
     }
 
-    // 正变换：将旋转空间中的线段映射回世界空间
+    // ── 关键保护：限制最大填充线数，防止极小间距时产生数万条线导致卡死 ──
+    if (linesToGenerate > kMaxHatchLines) {
+        linesToGenerate = kMaxHatchLines;
+        if (!data.averageDistribute && spacing > 0.0)
+            spacing = usableRange / (linesToGenerate - 1);
+    }
+
     QTransform tf;
     tf.translate(cx, cy);
     tf.rotate(angleDeg);
     tf.translate(-cx, -cy);
+
+    const double m11 = tf.m11(), m12 = tf.m12();
+    const double m21 = tf.m21(), m22 = tf.m22();
+    const double dx = tf.dx(), dy = tf.dy();
+    auto mapPoint = [&](double x, double y) {
+        return PointD(x * m11 + y * m21 + dx, x * m12 + y * m22 + dy);
+    };
+
+    hatchLines.reserve(linesToGenerate);
 
     const double indent  = data.straightIndent * 10.0;
     bool         toRight = true;
@@ -318,39 +316,41 @@ PathsD FillPreviewWidget::generateHatchLines(const PathsD& clipPolygon, double a
         const double xR = maxX - indent;
         if (xL >= xR) continue;
 
-        // 生成点模式 后续加入锯齿或其他样式
-        QVector<QPointF> points;
+        PathD mapped;
         if (data.fillType == 1) {
-            // 往返锯齿填充
             if (toRight) {
-                points << QPointF(xL, y) << QPointF(xR, y);
+                mapped.reserve(2);
+                mapped.push_back(mapPoint(xL, y));
+                mapped.push_back(mapPoint(xR, y));
             } else {
-                points << QPointF(xR, y) << QPointF(xL, y);
-                if (i > 0) points << QPointF(xR, y - spacing);
+                mapped.reserve(3);
+                mapped.push_back(mapPoint(xR, y));
+                mapped.push_back(mapPoint(xL, y));
+                if (i > 0) mapped.push_back(mapPoint(xR, y - spacing));
             }
             toRight = !toRight;
         } else {
-            points << QPointF(xL, y) << QPointF(xR, y);
+            mapped.reserve(2);
+            mapped.push_back(mapPoint(xL, y));
+            mapped.push_back(mapPoint(xR, y));
         }
 
-        PathD mapped = MapOpenPathToClipper(tf, points);
         if (mapped.size() >= 2)
-            hatchLines.push_back(mapped);
+            hatchLines.push_back(std::move(mapped));
     }
 
     return hatchLines;
 }
 
-QPainterPath FillPreviewWidget::clipHatchToPath(const PathsD& clipPolygon, double angleDeg,const FillData& data) const
+QPainterPath FillPreviewWidget::clipHatchToPath(const PathsD& clipPolygon, double angleDeg, const FillData& data) const
 {
-    PathsD lines = generateHatchLines(clipPolygon, angleDeg,data);
+    PathsD lines = generateHatchLines(clipPolygon, angleDeg, data);
     if (data.crossFill) {
         PathsD cross = generateHatchLines(clipPolygon, angleDeg + 90.0, data);
         lines.insert(lines.end(), cross.begin(), cross.end());
     }
 
     ClipperD clipper;
-    //它们不是封闭多边形，因此作为 open subject 添加
     clipper.AddOpenSubject(lines);
     clipper.AddClip(clipPolygon);
 
@@ -359,48 +359,81 @@ QPainterPath FillPreviewWidget::clipHatchToPath(const PathsD& clipPolygon, doubl
     return ClipperToQtOpenPath(openResult);
 }
 
-QList<QPainterPath> FillPreviewWidget::generateFillPath() const
+LayerCacheData FillPreviewWidget::computeLayerCache(const FillData& data) const
 {
-    QList<QPainterPath> results;
+    LayerCacheData cache;
 
-    // 分图层单元处理缓存路径（按照填充 1 -> 2 -> 3顺序）
-    for (const FillData& data : m_data) {
-        if (!m_hasFill || !data.enable || data.fillType == -1) {
-            results.append(QPainterPath());
-            continue;
-        }
+    const double angle    = data.autoRotate ? data.rotationAngle : data.angle;
+    const PathsD base     = buildBasePolygon(data);
 
-        const double angle = data.autoRotate ? data.rotationAngle : data.angle;
-        QPainterPath resultPath;
+    // 预计算轮廓闭合路径
+    cache.basePath = ClipperToQtClosedPath(base);
+
+    // 预计算所有边界环路径
+    for (int i = 1; i <= data.boundaryLoops; ++i) {
+        const double offset = -qMax(1.0, data.pitch * 10.0) * i;
 
         if (data.objectCalculation) {
-            PathsD clip = buildClipPolygon(buildBasePolygon(data), data);
-            resultPath.addPath(clipHatchToPath(clip, angle, data));
-            results.append(resultPath);
+            PathsD r = InflatePaths(base, offset, JoinType::Miter, EndType::Polygon);
+            cache.boundaryPath.addPath(ClipperToQtClosedPath(r));
             continue;
         }
 
         if (data.keepIndependent) {
-            // 当前单元独立管控：解绑边界组合单独切割
-            if (!m_hasDxf) {
-                for (const PathsD& singleBase : { QtPathToClipper(m_shape1), QtPathToClipper(m_shape2) }) {
-                    resultPath.addPath(clipHatchToPath(buildClipPolygon(singleBase, data), angle, data));
+            if (m_hasDxf) {
+                for (const PathD& path : base) {
+                    PathsD single = { path };
+                    cache.boundaryPath.addPath(ClipperToQtClosedPath(
+                        InflatePaths(single, offset, JoinType::Miter, EndType::Polygon)));
                 }
             } else {
-                for (const PathD& path : buildDxfBasePolygon()) {
-                    PathsD single = { path };
-                    resultPath.addPath(clipHatchToPath(buildClipPolygon(single, data), angle, data));
+                for (const PathsD& src : { QtPathToClipper(m_shape1), QtPathToClipper(m_shape2) }) {
+                    PathsD r = InflatePaths(src, offset, JoinType::Miter, EndType::Polygon);
+                    if (!r.empty()) cache.boundaryPath.addPath(ClipperToQtClosedPath(r));
                 }
             }
         } else {
-            // 全局基础绑定
-            PathsD base = buildBasePolygon(data);
-            PathsD clip = buildClipPolygon(base, data);
-            resultPath.addPath(clipHatchToPath(clip, angle, data));
+            PathsD r = InflatePaths(base, offset, JoinType::Miter, EndType::Polygon);
+            cache.boundaryPath.addPath(ClipperToQtClosedPath(r));
         }
-        results.append(resultPath);
     }
-    
+
+    // 预计算填充线路径
+    if (data.objectCalculation) {
+        PathsD clip = buildClipPolygon(base, data);
+        cache.fillPath.addPath(clipHatchToPath(clip, angle, data));
+        return cache;
+    }
+
+    if (data.keepIndependent) {
+        if (!m_hasDxf) {
+            for (const PathsD& singleBase : { QtPathToClipper(m_shape1), QtPathToClipper(m_shape2) }) {
+                cache.fillPath.addPath(clipHatchToPath(buildClipPolygon(singleBase, data), angle, data));
+            }
+        } else {
+            for (const PathD& path : buildDxfBasePolygon()) {
+                PathsD single = { path };
+                cache.fillPath.addPath(clipHatchToPath(buildClipPolygon(single, data), angle, data));
+            }
+        }
+    } else {
+        PathsD clip = buildClipPolygon(base, data);
+        cache.fillPath.addPath(clipHatchToPath(clip, angle, data));
+    }
+
+    return cache;
+}
+
+QList<LayerCacheData> FillPreviewWidget::generateLayerCaches() const
+{
+    QList<LayerCacheData> results;
+    for (const FillData& data : m_data) {
+        if (!m_hasFill || !data.enable || data.fillType == -1) {
+            results.append(LayerCacheData());
+            continue;
+        }
+        results.append(computeLayerCache(data));
+    }
     return results;
 }
 
@@ -433,7 +466,7 @@ QTransform FillPreviewWidget::computeViewTransform() const
 
     QTransform tf;
     tf.translate(screenCx, screenCy);
-    tf.scale(scale, -scale);           // Y 轴翻转：CAD 坐标系向上为正
+    tf.scale(scale, -scale);
     tf.translate(-bounds.center().x(), -bounds.center().y());
     return tf;
 }
@@ -474,42 +507,6 @@ void FillPreviewWidget::paintContours(QPainter& painter) const
     }
 }
 
-void FillPreviewWidget::paintBoundaryLoops(QPainter& painter,
-                                            const PathsD& base,
-                                            const FillData& data,
-                                            const QColor& color) const
-{
-    painter.setPen(QPen(color, 0));
-    for (int i = 1; i <= data.boundaryLoops; ++i) {
-        const double offset = -qMax(1.0, data.pitch * 10.0) * i;
-
-        if (data.objectCalculation) {
-            PathsD r = InflatePaths(base, offset, JoinType::Miter, EndType::Polygon);
-            painter.drawPath(ClipperToQtClosedPath(r));
-            continue;
-        }
-
-        if (data.keepIndependent) {
-            if (m_hasDxf) {
-                for (const PathD& path : base) {
-                    PathsD single = { path };
-                    painter.drawPath(ClipperToQtClosedPath(
-                        InflatePaths(single, offset, JoinType::Miter, EndType::Polygon)));
-                }
-            } else {
-                for (const PathsD& src : { QtPathToClipper(m_shape1), QtPathToClipper(m_shape2) }) {
-                    PathsD r = InflatePaths(src, offset, JoinType::Miter, EndType::Polygon);
-                    if (!r.empty()) painter.drawPath(ClipperToQtClosedPath(r));
-                }
-            }
-        } else {
-            // 参数绑定计算，作为统一组合偏移
-            PathsD r = InflatePaths(base, offset, JoinType::Miter, EndType::Polygon);
-            painter.drawPath(ClipperToQtClosedPath(r));
-        }
-    }
-}
-
 void FillPreviewWidget::paintStatusText(QPainter& painter) const
 {
     painter.setPen(Qt::darkGray);
@@ -529,7 +526,7 @@ void FillPreviewWidget::paintStatusText(QPainter& painter) const
     } else {
         int activeCount = 0;
         for (const auto& d : m_data) if (d.enable) activeCount++;
-        
+
         painter.drawText(8, height() - 10,
             QString("Active Layers Stacked: %1 | %2")
                 .arg(activeCount)
@@ -548,56 +545,49 @@ void FillPreviewWidget::paintEvent(QPaintEvent*)
         painter.setTransform(computeViewTransform());
 
     paintContours(painter);
-    if (m_hasFill)
-    {
-        // 保证强制按层级顺序 [0] -> [1] -> [2] 从底层图涂覆到顶层
+
+    if (m_hasFill && !m_isCalculating) {
         for (int i = 0; i < m_data.size(); ++i) {
             const FillData& currentData = m_data[i];
             if (!currentData.enable || currentData.fillType == -1) continue;
+            if (i >= m_cachedLayers.size()) continue;
 
-            const QColor  penColor(currentData.penColor);
-            const PathsD  base = buildBasePolygon(currentData);
+            const LayerCacheData& cache   = m_cachedLayers[i];
+            const QColor          penColor(currentData.penColor);
 
-            // 绘制当前层的边界环
-            paintBoundaryLoops(painter, base, currentData, penColor);
+            // 绘制边界环（已缓存，直接 draw）
+            painter.setPen(QPen(penColor, 0));
+            if (!cache.boundaryPath.isEmpty())
+                painter.drawPath(cache.boundaryPath);
 
-            // 取对应槽位的填充缓存路径
-            QPainterPath cachedPath;
-            if (i < m_cachedFillPath.size() && !m_isCalculating)
-                cachedPath = m_cachedFillPath[i];
-                
-            // 按当前层级的填充次数顺序涂涂覆叠加
+            // 按 processCount 叠加绘制
             for (int loop = 0; loop < currentData.processCount; ++loop) {
                 if (currentData.enableProfile) {
                     if (currentData.profileIconIndex == 0) {
-                        // 先填充，后轮廓
                         painter.setPen(QPen(penColor, 0));
-                        if (!cachedPath.isEmpty()) painter.drawPath(cachedPath);
+                        if (!cache.fillPath.isEmpty()) painter.drawPath(cache.fillPath);
 
                         painter.setPen(QPen(currentData.walkAround ? Qt::blue : penColor, 0));
-                        painter.drawPath(ClipperToQtClosedPath(base));
-                    }
-                    else {
-                        // 先轮廓，后填充
+                        painter.drawPath(cache.basePath);
+                    } else {
                         painter.setPen(QPen(currentData.walkAround ? Qt::blue : penColor, 0));
-                        painter.drawPath(ClipperToQtClosedPath(base));
+                        painter.drawPath(cache.basePath);
 
                         painter.setPen(QPen(penColor, 0));
-                        if (!cachedPath.isEmpty()) painter.drawPath(cachedPath);
+                        if (!cache.fillPath.isEmpty()) painter.drawPath(cache.fillPath);
                     }
-                }
-                else {
+                } else {
                     if (currentData.walkAround) {
                         painter.setPen(QPen(Qt::blue, 0));
-                        painter.drawPath(ClipperToQtClosedPath(base));
+                        painter.drawPath(cache.basePath);
                     }
                     painter.setPen(QPen(penColor, 0));
-                    if (!cachedPath.isEmpty()) painter.drawPath(cachedPath);
+                    if (!cache.fillPath.isEmpty()) painter.drawPath(cache.fillPath);
                 }
             }
         }
     }
-    
+
     painter.restore();
     paintStatusText(painter);
 }
